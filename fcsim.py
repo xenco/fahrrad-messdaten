@@ -10,9 +10,9 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 nPackets = 0
 
 def generateData():
-	pGen = os.urandom(1)
-	T = os.urandom(2)
-	nLm = os.urandom(2)
+	pGen = b"\xFF"
+	T = b"\x0002"
+	nLm = b"\x0001"
 	
 	return b"%s%s%s" % (pGen, T, nLm)
 
