@@ -2,7 +2,8 @@
 #
 # Empfängt Daten vom Fahrrad Controller und kommuniziert mit der API
 
-import socket, requests, random
+import socket, requests, random, os
+clear = lambda: os.system('cls')
 
 API_URL = "http://localhost/fahrrad/public/"
 
@@ -23,11 +24,23 @@ def computeData(data):
 	T = int.from_bytes([data[1],data[2]], byteorder='big')				# Zeit für eine Tretlagerumdrehung in Sekunden
 	nLm = int.from_bytes([data[3],data[4]], byteorder='big')			# Umdrehungen Lichtmaschine
 	
-	#print(pGen, T, nLm)
-	
 	strecke = nLm * (reifenUmfang / u)
-	geschwindigkeit = strecke / T
+	geschwindigkeit = (strecke / (T / 15625)) * 3.6
 	istLeistung = pGen
+	
+	clear()
+	print("Raw: ", data)
+	print()
+	print("pGen: ", pGen)
+	print("T: ", T)
+	print("nLm: ", nLm)
+	print()
+	print("Umdrehungen: ", nLm)
+	print("Zeit in Ticks: ", T)
+	print("Zeit in Sekunden: ", T / 15625)
+	print("Strecke: ", strecke)
+	print("Geschwindigkeit: ", geschwindigkeit)
+	print("istLeistung: ", istLeistung)
 	
 	return strecke, geschwindigkeit, istLeistung
 
@@ -41,10 +54,8 @@ if __name__ == "__main__":
 		try:
 			data, addr = socket.recvfrom(8)
 			print(addr, data)
-
 			strecke, geschwindigkeit, istLeistung = computeData(data)
-			print("strecke: ", strecke, " Meter, geschwindigkeit: ", geschwindigkeit, " km/h, istLeistung: ", istLeistung, " Watt")
-
+			
 			requests.post(API_URL + "data", data = {
 				"ip": "10.0.0."+ str(random.choice([1,2,3])),
 				"strecke": strecke,

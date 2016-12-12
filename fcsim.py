@@ -10,9 +10,9 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 nPackets = 0
 
 def generateData():
-	pGen = b"\xFF"
-	T = b"\x0002"
-	nLm = b"\x0001"
+	pGen = b"\x3A"
+	T = b"\x3A\x98"
+	nLm = b"\x00\x05"
 	
 	return b"%s%s%s" % (pGen, T, nLm)
 
