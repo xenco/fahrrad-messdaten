@@ -1,11 +1,11 @@
 # Server
 #
 # Empfängt Daten vom Fahrrad Controller und kommuniziert mit der API
-
-import socket, requests, random, os, json
+import socket, random, os, json, pymysql
 clear = lambda: os.system('cls')
 
-API_URL = "http://localhost/fahrrad/public/"
+socket_send = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+socket_receive = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 class Fahrrad:
 	def __init__(self, ip, mac):
@@ -28,33 +28,47 @@ class Fahrrad:
 		self.nLm 	= 0
 
 	def sollDatenAktualisieren(self):
-		response = requests.get(API_URL + "data/" + self.ip)
-		if(response.status_code == 200):
-			json_data = json.loads(response.text)
-			
-			sollDrehmoment = json_data["fahrrad"]["sollDrehmoment"] # Int
-			sollLeistung   = json_data["fahrrad"]["sollLeistung"] 	# Int
-			
-			# Ist kein Wert, oder beide Werte gesetzt liegt ein Fehler vor und keine Änderung wird angewendet
-			if((sollLeistung == None and sollDrehmoment == None) or (sollLeistung != None and sollDrehmoment != None)):
-				print("Keine Änderung, da fehlerhafte Daten")
-			else:
-				# Leistung anpassen
-				if(sollLeistung != None and sollDrehmoment == None):
-					if(self.sollLeistung != bytes([sollLeistung])): # Änderung notwendig?
-						self.sollLeistung = bytes([sollLeistung])
-						self.sendToFC(1)
-					
-				# Drehmoment anpassen
-				if(sollLeistung == None and sollDrehmoment != None):
-					if(self.sollDrehmoment != bytes([sollDrehmoment])): # Änderung notwendig?
-						self.sollDrehmoment = bytes([sollDrehmoment])
-						self.sendToFC(2)
+		db= pymysql.connect(host='localhost',user='root',password='',db='fahrradergometer',charset='utf8mb4',cursorclass=pymysql.cursors.DictCursor)
+		cur=db.cursor()
+		cur.execute("SELECT sollLeistung,sollDrehmoment FROM fahrrad WHERE ip='"+self.ip+"'")
+		
+		sollLeistung = None
+		sollDrehmoment = None
+		for row in cur:
+			sollLeistung   = row["sollLeistung"]
+			sollDrehmoment = row["sollDrehmoment"]
+		
+		# Ist kein Wert, oder beide Werte gesetzt liegt ein Fehler vor und keine Änderung wird angewendet
+		if((sollLeistung == None and sollDrehmoment == None) or (sollLeistung != None and sollDrehmoment != None)):
+			print("Keine Änderung, da fehlerhafte Daten")
+		else:
+			# Leistung anpassen
+			if(sollLeistung != None and sollDrehmoment == None):
+				sollLeistung = int(sollLeistung)
+				if(self.sollLeistung != bytes([sollLeistung])): # Änderung notwendig?
+					self.sollLeistung = bytes([sollLeistung])
+					self.sendToFC(1)
+				
+			# Drehmoment anpassen
+			if(sollLeistung == None and sollDrehmoment != None):
+				sollDrehmoment = int(sollDrehmoment)
+				if(self.sollDrehmoment != bytes([sollDrehmoment])): # Änderung notwendig?
+					self.sollDrehmoment = bytes([sollDrehmoment])
+					self.sendToFC(2)
 	
 	# Sendet die Daten an den Fahrradcontroller zur Anpassung der Regelung
 	def sendToFC(self, mode):
-		bytestring = bytes([mode]) + (self.sollLeistung if mode == 1 else self.sollDrehmoment)
-		print(bytestring)
+		byte_ip = bytes([int((self.ip).split(".")[0])])+bytes([int((self.ip).split(".")[1])])+bytes([int((self.ip).split(".")[2])])+bytes([int((self.ip).split(".")[3])])
+		
+		byte_port = bytes([0])+bytes([91])
+		
+		packet_who = byte_ip + byte_port
+		packet_what = bytes([mode]) + (self.sollLeistung if mode == 1 else self.sollDrehmoment)
+		
+		ap_ip = "192.168.4.1"
+		
+		socket_send.sendto(packet_who,  (ap_ip, 91)) # 6 Byte [IP,PORT]
+		socket_send.sendto(packet_what, (ap_ip, 91))# 2 Byte [MODUS,VALUE]
 		
 	def compute(self, data):
 		# Paketformat (FC-Daten):
@@ -67,21 +81,27 @@ class Fahrrad:
 		#	Mode 						(1 Byte)
 		self.data = data
 
-		self.pGen 	= data[0] 											 # mittlere IST-Leistung in W
-		self.T 		= int.from_bytes([data[1],data[2]], byteorder='big') # Zeit für eine Tretlagerumdrehung in Sekunden
-		self.nLm 	= int.from_bytes([data[3],data[4]], byteorder='big') # Umdrehungen Lichtmaschine
+		self.pGen 	= data[1] 											 # mittlere IST-Leistung in W
+		self.T 		= int.from_bytes([data[2],data[3]], byteorder='big') # Zeit für eine Tretlagerumdrehung in Sekunden
+		self.nLm 	= int.from_bytes([data[4],data[5]], byteorder='big') # Umdrehungen Lichtmaschine
 		
-		self.strecke 		 = self.nLm * (self.reifenUmfang / self.u)
-		self.geschwindigkeit = (self.strecke / (self.T / 15625)) * 3.6
+		self.strecke 		 = int(self.nLm * (self.reifenUmfang / self.u))
+		self.geschwindigkeit = int((self.strecke / (self.T / 15625)) * 3.6)
 		self.istLeistung 	 = self.pGen
 		
+		#print("Aendere: " + str(self.ip))
+		#print("strecke: " + str(self.strecke))
+		#print("geschwindigkeit: " + str(self.geschwindigkeit))
+		#print("istLeistung: " + str(self.istLeistung))
+		
 		# Änderungen an die API senden
-		requests.post(API_URL + "data", data = { 
-			"ip": self.ip, 
-			"strecke": self.strecke,
-			"geschwindigkeit": self.geschwindigkeit,
-			"istLeistung": self.istLeistung
-		})
+		print("Update " + self.ip + " mit istLeistung=" + str(self.istLeistung) + " strecke=" + str(self.strecke)+ " geschwindigkeit=" + str(self.geschwindigkeit))
+		
+		db= pymysql.connect(host='localhost',user='root',password='',db='fahrradergometer',charset='utf8mb4',cursorclass=pymysql.cursors.DictCursor)
+		cur=db.cursor()
+		
+		cur.execute ("UPDATE fahrrad SET geschwindigkeit=%s, istLeistung=%s, strecke=%s WHERE ip=%s", (str(self.geschwindigkeit), str(self.istLeistung), str(self.strecke), self.ip))
+		db.commit()
 		
 	def printData(self):
 		print("Raw: ", self.data)
@@ -96,22 +116,21 @@ class Fahrrad:
 		print("Strecke: ", self.strecke)
 		print("Geschwindigkeit: ", self.geschwindigkeit)
 		print("istLeistung: ", self.istLeistung)
-
+		
 if __name__ == "__main__":
 	fahrraeder = [
-		Fahrrad("10.0.0.0", "00:00:00:00:00:00"),
-		Fahrrad("10.0.0.1", "00:00:00:00:00:01"),
-		Fahrrad("10.0.0.2", "00:00:00:00:00:02")
+		Fahrrad("192.168.4.3", "00:00:00:00:00:00"),
+		Fahrrad("192.168.4.4", "00:00:00:00:00:01"),
+		Fahrrad("192.168.4.5", "00:00:00:00:00:02")
 	]
 	
-	socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-	socket.bind(("", 90))
-
+	socket_receive.bind(("", 90))
 	print("Waiting on port:", 90)
 
 	while 1:
 		# Ist Daten aktualisieren
-		data, addr = socket.recvfrom(8)
+		data, addr = socket_receive.recvfrom(8)
+		#print(data, addr[0])
 		
 		#clear()
 		for fahrrad in fahrraeder:

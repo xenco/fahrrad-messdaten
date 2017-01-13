@@ -10,14 +10,14 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 nPackets = 0
 
 def generateData():
-	pGen 	= os.urandom(1) #b"\x3A"
-	T 		= os.urandom(2) #b"\x3A\x98"
-	nLm 	= os.urandom(2) #b"\x00\xFF"
+	pGen 	= b"\x3A"
+	T 		= b"\x3A\x98"
+	nLm 	= b"\x00\x0F"
 	
-	return b"%s%s%s" % (pGen, T, nLm)
+	return b"%s%s%s%s" % (bytes([nPackets]),pGen, T, nLm)
 
 if __name__ == "__main__":
 	while 1:
-		time.sleep(5)
+		time.sleep(1)
 		if(sock.sendto(generateData(), (SERVER, PORT))): nPackets += 1
 		print("Sending Packet #", nPackets)
