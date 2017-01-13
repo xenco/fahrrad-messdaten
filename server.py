@@ -70,6 +70,8 @@ class Fahrrad:
 		socket_send.sendto(packet_who,  (ap_ip, 91)) # 6 Byte [IP,PORT]
 		socket_send.sendto(packet_what, (ap_ip, 91))# 2 Byte [MODUS,VALUE]
 		
+		print("who: " + str(packet_who) + ", what: " + str(packet_what))
+		
 	def compute(self, data):
 		# Paketformat (FC-Daten):
 		# 8 Byte
