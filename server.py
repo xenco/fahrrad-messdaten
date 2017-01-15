@@ -118,7 +118,30 @@ class Fahrrad:
 		print("Strecke: ", self.strecke)
 		print("Geschwindigkeit: ", self.geschwindigkeit)
 		print("istLeistung: ", self.istLeistung)
-		
+
+def batteryUpdate(data):
+	uBat  = int.from_bytes([data[1],data[2]], byteorder='big') / 1000  # mV / 1000 = V
+	iGen  = int.from_bytes([data[3],data[4]], byteorder='big') / 1000  # mA / 1000 = A
+	iLoad = int.from_bytes([data[5],data[6]], byteorder='big') / 1000  # mA / 1000 = A
+	
+	# Änderung notwendig?
+	db= pymysql.connect(host='localhost',user='root',password='',db='fahrradergometer',charset='utf8mb4',cursorclass=pymysql.cursors.DictCursor)
+	cur=db.cursor()
+	
+	num_rows = cur.execute ("SELECT * FROM batterie ORDER BY id DESC LIMIT 1")
+	res = cur.fetchone()
+	
+	uBat_rounded  = round(uBat, 2)
+	iGen_rounded  = round(iGen, 2)
+	iLoad_rounded = round(iLoad, 2)
+	
+	if(num_rows == 0 or ((str(res["spannung"]) != str(uBat_rounded)) or (str(res["generatorstrom"]) != str(iGen_rounded)) or (str(res["laststrom"]) != str(iLoad_rounded)))):
+		# Änderungen an die API senden
+		print("Update Batterie: Spannung="+str(uBat)+" Generatorstrom="+str(iGen)+" Laststrom="+str(iLoad))
+
+		cur.execute ("INSERT INTO batterie(spannung, generatorstrom, laststrom) VALUES(%s, %s, %s)",(str(uBat), str(iGen), str(iLoad)))
+		db.commit()
+	
 if __name__ == "__main__":
 	fahrraeder = [
 		Fahrrad("192.168.4.3", "00:00:00:00:00:00"),
@@ -132,13 +155,19 @@ if __name__ == "__main__":
 	while 1:
 		# Ist Daten aktualisieren
 		data, addr = socket_receive.recvfrom(8)
-		#print(data, addr[0])
+		print(len(data), addr[0])
 		
-		#clear()
-		for fahrrad in fahrraeder:
-			#if(fahrrad.ip == addr): # Daten kommen von diesem Fahrrad
-			fahrrad.compute(data)
-				
-		# Solldaten auswerten
-		for fahrrad in fahrraeder:
-			fahrrad.sollDatenAktualisieren()
+		
+		if(len(data) == 7):# Batteriepaket
+			batteryUpdate(data)
+		
+		elif(len(data) == 8):# Fahrradpaket
+			for fahrrad in fahrraeder:
+				#if(fahrrad.ip == addr): # Daten kommen von diesem Fahrrad
+				fahrrad.compute(data)
+					
+			# Solldaten auswerten
+			for fahrrad in fahrraeder:
+				fahrrad.sollDatenAktualisieren()
+			
+		
