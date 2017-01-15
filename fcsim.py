@@ -12,7 +12,7 @@ nPackets = 0
 def generateData():
 	pGen 	= b"\x3A"
 	T 		= b"\x3A\x98"
-	nLm 	= b"\x00\x0F"
+	nLm 	= b"\x00\xA0"
 	
 	return b"%s%s%s%s" % (bytes([nPackets]),pGen, T, nLm)
 

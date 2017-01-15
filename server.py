@@ -13,6 +13,7 @@ class Fahrrad:
 		self.mac = mac
 		
 		self.strecke = 0
+		self.strecke_gesamt = 0
 		self.geschwindigkeit = 0
 		self.istLeistung = 0
 		
@@ -39,9 +40,7 @@ class Fahrrad:
 			sollDrehmoment = row["sollDrehmoment"]
 		
 		# Ist kein Wert, oder beide Werte gesetzt liegt ein Fehler vor und keine Änderung wird angewendet
-		if((sollLeistung == None and sollDrehmoment == None) or (sollLeistung != None and sollDrehmoment != None)):
-			print("Keine Änderung, da fehlerhafte Daten")
-		else:
+		if((sollLeistung != None and sollDrehmoment == None) or (sollLeistung == None and sollDrehmoment != None)):
 			# Leistung anpassen
 			if(sollLeistung != None and sollDrehmoment == None):
 				sollLeistung = int(sollLeistung)
@@ -88,6 +87,7 @@ class Fahrrad:
 		self.nLm 	= int.from_bytes([data[4],data[5]], byteorder='big') # Umdrehungen Lichtmaschine
 		
 		self.strecke 		 = int(self.nLm * (self.reifenUmfang / self.u))
+		self.strecke_gesamt	 = self.strecke_gesamt + self.strecke
 		self.geschwindigkeit = int((self.strecke / (self.T / 15625)) * 3.6)
 		self.istLeistung 	 = self.pGen
 		
@@ -97,12 +97,12 @@ class Fahrrad:
 		#print("istLeistung: " + str(self.istLeistung))
 		
 		# Änderungen an die API senden
-		print("Update " + self.ip + " mit istLeistung=" + str(self.istLeistung) + " strecke=" + str(self.strecke)+ " geschwindigkeit=" + str(self.geschwindigkeit))
+		print("Update " + self.ip + " mit istLeistung=" + str(self.istLeistung) + " strecke=" + str(self.strecke_gesamt)+ " geschwindigkeit=" + str(self.geschwindigkeit))
 		
 		db= pymysql.connect(host='localhost',user='root',password='',db='fahrradergometer',charset='utf8mb4',cursorclass=pymysql.cursors.DictCursor)
 		cur=db.cursor()
 		
-		cur.execute ("UPDATE fahrrad SET geschwindigkeit=%s, istLeistung=%s, strecke=%s WHERE ip=%s", (str(self.geschwindigkeit), str(self.istLeistung), str(self.strecke), self.ip))
+		cur.execute ("UPDATE fahrrad SET geschwindigkeit=%s, istLeistung=%s, strecke=%s WHERE ip=%s", (str(self.geschwindigkeit), str(self.istLeistung), str(self.strecke_gesamt), self.ip))
 		db.commit()
 		
 	def printData(self):
