@@ -12,7 +12,7 @@ nPackets = 0
 def generateData():
 	pGen 	= b"\x3A"
 	T 		= b"\x3A\x98"
-	nLm 	= b"\xA0"
+	nLm 	= b"\xFF"
 	
 	extrema = b"\x00\x00" 	 # wird nicht ausgewertet
 	modus   = b"\x00"	     # wird nicht ausgewertet

@@ -84,17 +84,12 @@ class Fahrrad:
 
 		self.pGen 	= data[1] 											 # mittlere IST-Leistung in W
 		self.T 		= int.from_bytes([data[2],data[3]], byteorder='big') # Zeit für eine Tretlagerumdrehung in Sekunden
-		self.nLm 	= int.from_bytes([data[4],data[5]], byteorder='big') # Umdrehungen Lichtmaschine
+		self.nLm 	= data[4] # Umdrehungen Lichtmaschine
 		
 		self.strecke 		 = int(self.nLm * (self.reifenUmfang / self.u))
 		self.strecke_gesamt	 = self.strecke_gesamt + self.strecke
 		self.geschwindigkeit = int((self.strecke / (self.T / 15625)) * 3.6)
 		self.istLeistung 	 = self.pGen
-		
-		#print("Aendere: " + str(self.ip))
-		#print("strecke: " + str(self.strecke))
-		#print("geschwindigkeit: " + str(self.geschwindigkeit))
-		#print("istLeistung: " + str(self.istLeistung))
 		
 		# Änderungen an die API senden
 		print("Update " + self.ip + " mit istLeistung=" + str(self.istLeistung) + " strecke=" + str(self.strecke_gesamt)+ " geschwindigkeit=" + str(self.geschwindigkeit))
@@ -102,7 +97,7 @@ class Fahrrad:
 		db= pymysql.connect(host='localhost',user='root',password='',db='fahrradergometer',charset='utf8mb4',cursorclass=pymysql.cursors.DictCursor)
 		cur=db.cursor()
 		
-		cur.execute ("UPDATE fahrrad SET geschwindigkeit=%s, istLeistung=%s, strecke=%s WHERE ip=%s", (str(self.geschwindigkeit), str(self.istLeistung), str(self.strecke_gesamt), self.ip))
+		cur.execute ("UPDATE fahrrad SET geschwindigkeit=%s, istLeistung=%s, strecke=%s WHERE (ip=%s AND fahrer_id is not NULL)", (str(self.geschwindigkeit), str(self.istLeistung), str(self.strecke_gesamt), self.ip))
 		db.commit()
 		
 	def printData(self):
